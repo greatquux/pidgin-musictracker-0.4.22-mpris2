@@ -96,6 +96,8 @@ get_mpris2_info(struct TrackInfo* ti)
 
   tmp = g_variant_get_child_value (answer, 0);
   name_list = g_variant_dup_strv (tmp, NULL);
+  g_variant_unref(answer);
+  g_variant_unref(tmp);
   
   for (name_list_ptr = name_list; *name_list_ptr; name_list_ptr++)
   {
@@ -209,4 +211,7 @@ get_mpris2_info(struct TrackInfo* ti)
   
  cleanup:
   g_strfreev(name_list);
+  g_variant_unref(answer);
+  g_variant_unref(value);
+  g_variant_unref(tmp);
 }
