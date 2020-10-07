@@ -5,3 +5,21 @@ audio players.
 musictracker is free software. Please see the file COPYING for details.
 For documentation, please see the files in the doc subdirectory.
 For building and installation instructions please see the INSTALL file.
+
+
+20200914 - 
+I was using the MPRIS2 support patch from 
+https://aur.archlinux.org/packages/pidgin-musictracker-mpris2/
+for a long while without issues, though I started to notice after
+a few days CPU usage of pidgin would creep up until it crashed, 
+and eventually isolated this to the MPRIS2 support in musictracker.
+I finally gave up searching for anyone else with the problem and dug
+into the code.  I didn't find any reason where it could get stuck in any
+kind of loop or what not and cause high CPU, but I did find that the
+functions it used to talk to DBus were "outdated" and converted them
+to the newer GDBus framework.  Of course, since I had to learn some new
+style framework and I haven't seriously programmed in C since college
+I expect there will be bugs.  In fact I'm sure already there's likely
+a memory leak with some of the objects where I'm reusing pointer variables
+without freeing them first, but I figured I'd throw this up now and watch
+my pidgin memory usage later.  :) Hopefully it helps someone else!
