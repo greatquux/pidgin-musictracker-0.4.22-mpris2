@@ -3,6 +3,7 @@
  * from https://aur.archlinux.org/packages/pidgin-musictracker-mpris2/
  * modified by greatquux after much trial, error, and remembering
  * classes about C from 20 years ago
+ * MJR 10/7/20 fixed memory leaks, properly unref GVariants
  */
 
 #include "musictracker.h"
@@ -42,8 +43,11 @@ get_mpris2_info(struct TrackInfo* ti)
   GVariantIter *iter;
   gchar *key, *tmpstr;
   
-  error = NULL;
-//  mpris2_error ("getting connection\n");
+  error = NULL; connection = NULL; proxy = NULL; proxy2 = NULL; 
+  answer = NULL; value = NULL; tmp = NULL;
+
+//mpris2_error ("getting connection\n");
+ 
   connection = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, &error);
   if (connection == NULL)
   {
@@ -52,7 +56,8 @@ get_mpris2_info(struct TrackInfo* ti)
     g_error_free (error);
     goto cleanup;
   }
-//  mpris2_error ("got connection\n");
+
+//mpris2_error ("got connection\n");
   
   proxy = g_dbus_proxy_new_sync (connection,
                                  G_DBUS_PROXY_FLAGS_NONE,
@@ -67,7 +72,8 @@ get_mpris2_info(struct TrackInfo* ti)
 	g_error_free (error);
 	goto cleanup;
   }
-//  mpris2_error ("got proxy\n");
+
+//mpris2_error ("got proxy\n");
 
   answer = g_dbus_proxy_call_sync (proxy, "ListNames", NULL, G_DBUS_CALL_FLAGS_NONE,
 			  -1, NULL, &error);
@@ -76,28 +82,13 @@ get_mpris2_info(struct TrackInfo* ti)
 	g_error_free (error);
 	goto cleanup;
   }
-//  mpris2_error ("got answer\n");
-    
-/*  
-    if (error->domain == DBUS_GERROR && error->code == DBUS_GERROR_REMOTE_EXCEPTION)
-    {
-      mpris2_error ("Caught remote method exception %s: %s",
-                    dbus_g_error_get_name (error),
-                    error->message);	
-    }
-    else
-    {
-      mpris2_error ("Error: %s\n", error->message);
-    }
-    g_error_free (error);
-    return;
-  }
-*/
 
+//mpris2_error ("got answer\n");
+    
   tmp = g_variant_get_child_value (answer, 0);
   name_list = g_variant_dup_strv (tmp, NULL);
-  g_variant_unref(answer);
-  g_variant_unref(tmp);
+  if (answer != NULL) g_variant_unref(answer);
+  if (tmp != NULL) g_variant_unref(tmp);
   
   for (name_list_ptr = name_list; *name_list_ptr; name_list_ptr++)
   {
@@ -114,8 +105,7 @@ get_mpris2_info(struct TrackInfo* ti)
 				NULL,
 				&error);
 
-// get playback status
-
+	// get playback status
       answer = g_dbus_proxy_call_sync (proxy2, "Get", 
 	      		g_variant_new("(ss)","org.mpris.MediaPlayer2.Player","PlaybackStatus"),
 			G_DBUS_CALL_FLAGS_NONE,
@@ -130,7 +120,7 @@ get_mpris2_info(struct TrackInfo* ti)
 
 //mpris2_debug("Got answer PlaybackStatus\n");
 //mpris2_debug("it is type: %s\n", g_variant_get_type_string(answer));
-//
+
 	tmp = g_variant_get_child_value (answer, 0);
 
 //mpris2_debug("Got child\n");
@@ -139,6 +129,9 @@ get_mpris2_info(struct TrackInfo* ti)
 	const gchar *status = g_variant_print(tmp, FALSE);
 
 //mpris2_debug("status %s\n",status);
+
+	  if (answer != NULL) g_variant_unref(answer);
+	  if (tmp != NULL) g_variant_unref(tmp);
 
 	// if player is stopped or paused, continue and see if 
 	// we can find a player that is Playing
@@ -203,15 +196,28 @@ get_mpris2_info(struct TrackInfo* ti)
 //mpris2_debug("artist:%s\n",ti->artist);
       }
     }
-  }
+  } /* while */
+
+//mpris2_debug("trying to free answer");
+  if (answer != NULL) g_variant_unref(answer);
+//mpris2_debug("trying to free value");
+  if (value != NULL) g_variant_unref(value);
+//mpris2_debug("trying to free tmp");
+  if (tmp != NULL) g_variant_unref(tmp);
 //mpris2_debug("title: %s\talbum: %s\tartist: %s\n",ti->track,ti->album,ti->artist);
+  
   goto cleanup;	 // if playing, just get out (ignore other ones which could be paused)
-    }
-  }
+    } /* if */
+
+
+  } /* for */
   
  cleanup:
   g_strfreev(name_list);
-  g_variant_unref(answer);
-  g_variant_unref(value);
-  g_variant_unref(tmp);
+//mpris2_debug("trying to free proxy");
+  if (proxy != NULL) g_object_unref(proxy);
+//mpris2_debug("trying to free proxy2");
+  if (proxy2 != NULL) g_object_unref(proxy2);
+//mpris2_debug("trying to free connection");
+  if (connection != NULL) g_object_unref(connection);
 }
